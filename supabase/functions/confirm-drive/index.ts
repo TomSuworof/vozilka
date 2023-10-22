@@ -1,12 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
 
 const clientUrl = Deno.env.get('SUPABASE_URL')
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
 
 serve(async (req) => {
-  const { drive_id, 
-    passenger_id } = await req.json()
+  if (req.method === 'OPTIONS') {
+    return new Response(
+      'ok',
+      {
+          headers: corsHeaders
+      }
+    );
+  }
+
+  const { drive_id, passenger_id } = await req.json()
   
   const supabase = createClient(
     clientUrl,
@@ -26,7 +35,7 @@ serve(async (req) => {
       JSON.stringify(error),
       {
         status: 422,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       },
     ) 
   }
@@ -37,7 +46,7 @@ serve(async (req) => {
       JSON.stringify(data || 'confirmed'),
       {
         status: 201,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       },
     )
   }

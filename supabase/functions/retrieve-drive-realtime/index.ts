@@ -1,58 +1,58 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { Kafka } from 'https://esm.sh/@upstash/kafka'
-
-const kafkaUrl = Deno.env.get('KAFKA_URL')
-const kafkaUsername = Deno.env.get('KAFKA_USERNAME')
-const kafkaPassword = Deno.env.get('KAFKA_PASSWORD')
-
-const kafkaTopic = Deno.env.get('KAFKA_DRIVE_TOPIC')
-
-console.log(kafkaUrl)
-console.log(kafkaUsername)
-console.log(kafkaPassword)
-console.log(kafkaTopic)
+import { corsHeaders } from '../_shared/cors.ts'
+import { credentials } from '../_shared/credentials.ts'
 
 const kafka = new Kafka({
-    url: kafkaUrl,
-    username: kafkaUsername,
-    password: kafkaPassword,
+  url: credentials.KAFKA_URL,
+  username: credentials.KAFKA_USERNAME,
+  password: credentials.KAFKA_PASSWORD
 })
 
 const consumer = kafka.consumer()
 
 const encoder = new TextEncoder();
 
-serve(async (_) => {
-    let timerId: number;
-    const body = new ReadableStream({
-        start(controller) {
-            timerId = setInterval(async () => {
-                consumer.consume({
-                    consumerGroupId: "vozilka-group-0",
-                    instanceId: "instance_1",
-                    topics: [kafkaTopic],
-                    autoOffsetReset: "earliest",
-                }).then(data => {
-                    if (data.length > 0) {
-                        let newDrive = JSON.parse(data[0].value)["payload"]["after"] 
-                        console.log(newDrive)
-                        
-                        const msg = encoder.encode(`data: ${JSON.stringify(newDrive)}\r\n\r\n`);
-                        
-                        controller.enqueue(msg)
-                    }
-                })
-            }, 5000);
-        },
-        cancel() {
-            if (typeof timerId === "number") {
-                clearInterval(timerId);
+serve(async (req) => {
+    if (req.method === 'OPTIONS') {
+        return new Response(
+        'ok',
+            {
+              headers: corsHeaders
             }
-        },
-    });
-    return new Response(body, {
-        headers: {
-          "Content-Type": "text/event-stream",
-        },
-    });
+        );
+    }
+
+    let data = await consumer.consume({
+        consumerGroupId: "group_1",
+        instanceId: "instance_1",
+        topics: ['vozilka-server.public.drives'],
+        autoOffsetReset: "earliest",
+        timeout: 10000
+    })
+
+    if (data.length > 0) {
+        let dataArr = []
+        console.log(data)
+        for (let i = 0; i < data.length; i++) {
+            let newDrive = JSON.parse(data[i].value)["payload"]["after"] 
+            dataArr.push(newDrive)
+        }
+        console.log(dataArr)
+        return new Response(
+          JSON.stringify(dataArr),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          },
+        )
+    } else {
+        return new Response(
+          JSON.stringify({"error": "no data"}),
+          {
+            status: 422,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          },
+        ) 
+    }
 });
