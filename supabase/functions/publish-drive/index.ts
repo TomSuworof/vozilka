@@ -23,6 +23,15 @@ serve(async (req) => {
     notes, 
     route, 
     source } = await req.json()
+
+  console.log({ arrival_time, 
+    car_name, 
+    departure_time, 
+    destination, 
+    driver_user_id, 
+    notes, 
+    route, 
+    source })
   
   const supabase = createClient(
     clientUrl,
