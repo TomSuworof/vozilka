@@ -10,35 +10,23 @@ serve(async (req) => {
         return new Response('ok', { headers: corsHeaders });
     }
 
-    const { 
-        arrival_time, 
-        car_name, 
-        departure_time, 
-        destination, 
-        driver_user_id, 
-        notes, 
-        route, 
-        source 
-    } = await req.json()
-    
+    const { car_names, source, destination, departure_time, arrival_time } = await req.json()
+  
     const supabase = createClient(
         clientUrl,
         anonKey,
         { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
-    
-    const { data, error } = await supabase
-        .rpc('publish_drive', {
-            arrival_time, 
-            car_name, 
-            departure_time, 
-            destination, 
-            driver_user_id, 
-            notes, 
-            route, 
-            source
-        })
-    
+
+    const {data, error} = await supabase
+        .from('drives')
+        .select()
+        .in('car_name', car_names)
+        .like('source', `%${source}%`)
+        .like('destination', `%${destination}%`)
+        .gte('departure_time', departure_time)
+        .lte('arrival_time', arrival_time)
+  
     if (error) {
         console.error(error)
         return new Response(
@@ -48,13 +36,12 @@ serve(async (req) => {
                 headers: { ...corsHeaders, "Content-Type": "application/json" }
             },
         ) 
-    }
-    else {
+    } else {
         console.log(data)
         return new Response(
-            JSON.stringify(data || 'created'),
+            JSON.stringify(data),
             {
-                status: 201,
+                status: 200,
                 headers: { ...corsHeaders, "Content-Type": "application/json" }
             },
         )
